@@ -12,6 +12,9 @@ import torch
 import librosa
 from audioread.exceptions import NoBackendError
 
+import random
+import numpy as np
+
 # Use this directory structure for your datasets, or modify it to fit your needs
 recognized_datasets = [
     "LibriSpeech/dev-clean",
@@ -203,37 +206,7 @@ class Toolbox:
     def clear_utterances(self):
         self.utterances.clear()
         self.ui.draw_umap_projections(self.utterances)
-        
-    def synthesize(self):
-        self.ui.log("Generating the mel spectrogram...")
-        self.ui.set_loading(1)
-        
-        # Synthesize the spectrogram
-        if self.synthesizer is None:
-            model_dir = self.ui.current_synthesizer_model_dir
-            checkpoints_dir = model_dir.joinpath("taco_pretrained")
-            self.synthesizer = Synthesizer(checkpoints_dir, low_mem=self.low_mem)
-        if not self.synthesizer.is_loaded():
-            self.ui.log("Loading the synthesizer %s" % self.synthesizer.checkpoint_fpath)
-
-        # Update the synthesizer random seed
-        if self.ui.random_seed_checkbox.isChecked():
-            seed = self.synthesizer.set_seed(int(self.ui.seed_textbox.text()))
-            self.ui.populate_gen_options(seed, self.trim_silences)
-        else:
-            seed = self.synthesizer.set_seed(None)
-        
-        texts = self.ui.text_prompt.toPlainText().split("\n")
-        embed = self.ui.selected_utterance.embed
-        embeds = np.stack([embed] * len(texts))
-        specs = self.synthesizer.synthesize_spectrograms(texts, embeds)
-        breaks = [spec.shape[1] for spec in specs]
-        spec = np.concatenate(specs, axis=1)
-        
-        self.ui.draw_spec(spec, "generated")
-        self.current_generated = (self.ui.selected_utterance.speaker_name, spec, breaks, None)
-        self.ui.set_loading(0)
-
+    
     def vocode(self):
         speaker_name, spec, breaks, _ = self.current_generated
         assert spec is not None
@@ -280,6 +253,7 @@ class Toolbox:
 
         # Play it
         wav = wav / np.abs(wav).max() * 0.97
+        # don't play yet
         self.ui.play(wav, Synthesizer.sample_rate)
 
         # Name it (history displayed in combobox)
@@ -321,6 +295,61 @@ class Toolbox:
         # Plot it
         self.ui.draw_embed(embed, name, "generated")
         self.ui.draw_umap_projections(self.utterances)
+
+        return embed
+    
+    def synthesize(self):
+        self.ui.log("Generating the mel spectrogram...")
+        self.ui.set_loading(1)
+        
+        # Synthesize the spectrogram
+        if self.synthesizer is None:
+            model_dir = self.ui.current_synthesizer_model_dir
+            checkpoints_dir = model_dir.joinpath("taco_pretrained")
+            self.synthesizer = Synthesizer(checkpoints_dir, low_mem=self.low_mem)
+        if not self.synthesizer.is_loaded():
+            self.ui.log("Loading the synthesizer %s" % self.synthesizer.checkpoint_fpath)
+
+        # Update the synthesizer random seed
+        if self.ui.random_seed_checkbox.isChecked():
+            seed = self.synthesizer.set_seed(int(self.ui.seed_textbox.text()))
+            self.ui.populate_gen_options(seed, self.trim_silences)
+        else:
+            seed = self.synthesizer.set_seed(None)
+        
+        texts = self.ui.text_prompt.toPlainText().split("\n")
+        embed = self.ui.selected_utterance.embed
+        embeds = np.stack([embed] * len(texts))
+
+        best_generated = 0
+        best_generated = self.current_generated
+        best_spec = self.synthesizer.synthesize_spectrograms(texts, embeds)
+        best_embed_comp = 1000000000000
+        # Add loop and comp
+        for _ in range(5):
+            #randomize seed. Since it seems to generate same voices
+            seed = self.synthesizer.set_seed(random.randint(0,1000))
+
+            # synthesize specto
+            specs = self.synthesizer.synthesize_spectrograms(texts, embeds)
+            breaks = [spec.shape[1] for spec in specs]
+            spec = np.concatenate(specs, axis=1)
+            
+            self.ui.draw_spec(spec, "generated")
+            self.current_generated = (self.ui.selected_utterance.speaker_name, spec, breaks, None)
+
+            embed_new = self.vocode()
+            print(embed.shape)
+            print(embed_new.shape)
+            if(np.linalg.norm(embed_new - embed) < best_embed_comp):
+                best_embed_comp = np.linalg.norm(embed_new-embed)
+                best_generated = self.current_generated
+                best_spec = spec
+
+        self.ui.draw_spec(spec, "generated")
+        self.current_generated = best_generated
+        self.ui.set_loading(0)
+    
         
     def init_encoder(self):
         model_fpath = self.ui.current_encoder_fpath
