@@ -154,19 +154,23 @@ class Tacotron():
                     tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
                     tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
                     tiled_embed_targets = tf.tile(tileable_embed_targets, 
-                                                       [1, tf.shape(encoder_outputs)[1], 1])
-                    encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
+                                                       [1, tf.shape(encoder_outputs)[1], 2])
+                    #encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
                     
+
+                    # print(encoder_outputs[i].shape)
+                    # print(tiled_embed_targets[i].shape)
+                    # exit()
                     ##############
                     
-                    
+                
                     # Decoder Parts
                     # Attention Decoder Prenet
                     prenet = Prenet(is_training, layers_sizes=hp.prenet_layers,
                                     drop_rate=hp.tacotron_dropout_rate, scope="decoder_prenet")
                     # Attention Mechanism
                     attention_mechanism = LocationSensitiveAttention(hp.attention_dim,
-                                                                     encoder_cond_outputs, 
+                                                                     encoder_outputs, 
                                                                      hparams=hp,
                                                                      mask_encoder=hp.mask_encoder,
                                                                      memory_sequence_length=tf.reshape(
@@ -179,6 +183,34 @@ class Tacotron():
                                               size=hp.decoder_lstm_units,
                                               zoneout=hp.tacotron_zoneout_rate,
                                               scope="decoder_LSTM")
+
+
+                    # EDIT YEN
+                     # Decoder Parts
+                    # Attention Decoder Prenet
+                    # prenet = Prenet(is_training, layers_sizes=hp.prenet_layers,
+                    #                 drop_rate=hp.tacotron_dropout_rate, scope="decoder_prenet")
+
+                    # Attention Mechanism
+                    attention_mechanism_speaker = LocationSensitiveAttention(hp.attention_dim,
+                                                                     tiled_embed_targets, 
+                                                                     hparams=hp,
+                                                                     mask_encoder=hp.mask_encoder,
+                                                                     memory_sequence_length=tf.reshape(
+                                                                         tower_input_lengths[i],
+                                                                         [-1]),
+                                                                     smoothing=hp.smoothing,
+                                                                     cumulate_weights=hp.cumulative_weights)
+                    # Decoder LSTM Cells
+                    # decoder_lstm_speaker = DecoderRNN(is_training, layers=hp.decoder_layers,
+                    #                           size=hp.decoder_lstm_units,
+                    #                           zoneout=hp.tacotron_zoneout_rate,
+                    #                           scope="decoder_LSTM")
+                    
+
+                    ###########
+                    # 
+                    # 3
                     # Frames Projection layer
                     frame_projection = FrameProjection(hp.num_mels * hp.outputs_per_step,
                                                        scope="linear_transform_projection")
@@ -195,6 +227,12 @@ class Tacotron():
                         frame_projection,
                         stop_projection)
                     
+                    decoder_cell_speaker = TacotronDecoderCell(
+                        prenet,
+                        attention_mechanism_speaker,
+                        decoder_lstm,
+                        frame_projection,
+                        stop_projection)
                     # Define the helper for our decoder
                     if is_training or is_evaluating or gta:
                         self.helper = TacoTrainingHelper(batch_size, tower_mel_targets[i], hp, gta,
@@ -204,6 +242,8 @@ class Tacotron():
                     
                     # initial decoder state
                     decoder_init_state = decoder_cell.zero_state(batch_size=batch_size,
+                                                                 dtype=tf.float32)
+                    decoder_init_state_speaker = decoder_cell_speaker.zero_state(batch_size=batch_size,
                                                                  dtype=tf.float32)
                     
                     # Only use max iterations at synthesis time
@@ -216,11 +256,32 @@ class Tacotron():
                         impute_finished=False,
                         maximum_iterations=max_iters,
                         swap_memory=hp.tacotron_swap_with_cpu)
+
+                    (frames_prediction_speaker, stop_token_prediction_speaker,
+                     _), final_decoder_state_speaker, _ = dynamic_decode(
+                        CustomDecoder(decoder_cell_speaker, self.helper, decoder_init_state_speaker),
+                        impute_finished=False,
+                        maximum_iterations=max_iters,
+                        swap_memory=hp.tacotron_swap_with_cpu)
+                    
+                    # add predictions of decoders
+
+                    '''Problems 
+                    - frames_prediction and frame_prediction_speaker not same shape (same with stop_token)
+                       when text input is not long enough
+                    - How does prediction speaker learn?
+                        Only does encoder->decoder
+                        It seems that the sound part is only learned in the text decoder                    
+                    '''
+                    frames_prediction += frames_prediction_speaker
+                    stop_token_prediction += stop_token_prediction_speaker
+
                     
                     # Reshape outputs to be one output per entry 
                     # ==> [batch_size, non_reduced_decoder_steps (decoder_steps * r), num_mels]
                     decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.num_mels])
                     stop_token_prediction = tf.reshape(stop_token_prediction, [batch_size, -1])
+                    
                     
                     # Postnet
                     postnet = Postnet(is_training, hparams=hp, scope="postnet_convolutions")
@@ -257,7 +318,7 @@ class Tacotron():
                         linear_outputs = linear_specs_projection(post_outputs)
                     
                     # Grab alignments from the final decoder state
-                    alignments = tf.transpose(final_decoder_state.alignment_history.stack(),
+                    alignments = tf.transpose(final_decoder_state_speaker.alignment_history.stack(),
                                               [1, 2, 0])
                     
                     self.tower_decoder_output.append(decoder_output)
@@ -266,7 +327,7 @@ class Tacotron():
                     self.tower_mel_outputs.append(mel_outputs)
                     tower_embedded_inputs.append(embedded_inputs)
                     tower_enc_conv_output_shape.append(enc_conv_output_shape)
-                    tower_encoder_cond_outputs.append(encoder_cond_outputs)
+                    # tower_encoder_cond_outputs.append(encoder_cond_outputs)
                     tower_residual.append(residual)
                     tower_projected_residual.append(projected_residual)
                     
@@ -295,7 +356,7 @@ class Tacotron():
             log("  device:                   {}".format(i))
             log("  embedding:                {}".format(tower_embedded_inputs[i].shape))
             log("  enc conv out:             {}".format(tower_enc_conv_output_shape[i]))
-            log("  encoder out (cond):       {}".format(tower_encoder_cond_outputs[i].shape))
+            # log("  encoder out (cond):       {}".format(tower_encoder_cond_outputs[i].shape))
             log("  decoder out:              {}".format(self.tower_decoder_output[i].shape))
             log("  residual out:             {}".format(tower_residual[i].shape))
             log("  projected residual out:   {}".format(tower_projected_residual[i].shape))
