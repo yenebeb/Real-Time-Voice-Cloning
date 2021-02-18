@@ -141,8 +141,18 @@ class Tacotron():
                         EncoderConvolutions(is_training, hparams=hp, scope="encoder_convolutions"),
                         EncoderRNN(is_training, size=hp.encoder_lstm_units,
                                    zoneout=hp.tacotron_zoneout_rate, scope="encoder_LSTM"))
+
+                    ### SV2TT2 ###
                     
-                    encoder_outputs = encoder_cell(embedded_inputs, tower_input_lengths[i])
+                    # Append the speaker embedding to the encoder output at each timestep
+                    tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
+                    tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
+                    tiled_embed_targets = tf.tile(tileable_embed_targets, 
+                                                       [1, tf.shape(embedded_inputs)[1], 1])
+                    encoder_cond_concat = tf.concat((embedded_inputs, tiled_embed_targets), 2)
+
+                    # embed_encode_concat = tf.reshape(embed_encode_concat, [36,-1,256])
+                    encoder_cond_outputs = encoder_cell(encoder_cond_concat, tower_input_lengths[i])
                     
                     # For shape visualization purpose
                     enc_conv_output_shape = encoder_cell.conv_output_shape
@@ -151,11 +161,11 @@ class Tacotron():
                     ### SV2TT2 ###
                     
                     # Append the speaker embedding to the encoder output at each timestep
-                    tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
-                    tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
-                    tiled_embed_targets = tf.tile(tileable_embed_targets, 
-                                                       [1, tf.shape(encoder_outputs)[1], 1])
-                    encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
+                    # tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
+                    # tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
+                    # tiled_embed_targets = tf.tile(tileable_embed_targets, 
+                    #                                    [1, tf.shape(encoder_outputs)[1], 1])
+                    # encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
                     
                     ##############
                     
