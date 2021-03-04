@@ -400,6 +400,7 @@ class Postnet:
     def __call__(self, inputs):
         with tf.compat.v1.variable_scope(self.scope):
             x = inputs
+
             for i in range(self.postnet_num_layers - 1):
                 x = conv1d(x, self.kernel_size, self.channels, self.activation,
                            self.is_training, self.drop_rate,
