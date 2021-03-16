@@ -240,7 +240,7 @@ class Tacotron():
                     frames_audio_conc = tf.concat((frames_prediction, audio_out), 0)
                     
                     decoder_output = tf.reshape(frames_audio_conc, [batch_size,-1, hp.num_mels])
-                    input_shape = (batch_size,-1,80) 
+                    input_shape = (batch_size,-1,80)
                     decoder_output = tf.compat.v1.layers.Conv1D(filters=80, kernel_size=1, strides=50, padding='valid', data_format='channels_last', input_shape=input_shape)(decoder_output)
                     decoder_output = tf.reshape(decoder_output, [batch_size, -1, hp.num_mels])
                     stop_token_prediction = tf.reshape(stop_token_prediction, [batch_size, -1])
