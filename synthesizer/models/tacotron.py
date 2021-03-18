@@ -205,6 +205,7 @@ class Tacotron():
                         frame_projection,
                         stop_projection)
                     
+
                     # Define the helper for our decoder
                     if is_training or is_evaluating or gta:
                         self.helper = TacoTrainingHelper(batch_size, tower_mel_targets[i], hp, gta,
@@ -229,29 +230,45 @@ class Tacotron():
                     
                     # Reshape outputs to be one output per entry 
                     # ==> [batch_size, non_reduced_decoder_steps (decoder_steps * r), num_mels]
-                    
+                    original_shape = tf.reshape(frames_prediction, [batch_size, -1, hp.num_mels])
+
                     frames_prediction = tf.reshape(frames_prediction, [-1])
                     audio_flatten = tf.reshape(embedded_inputs, [batch_size,-1,1])
-
-                    input_shape = (batch_size,-1,1)                   
-                    audio_out = tf.compat.v1.layers.Conv1D(filters=80, kernel_size=1, strides=1, padding='valid', data_format='channels_last', input_shape=input_shape)(audio_flatten)
-                    audio_out = tf.reshape(audio_out, [-1])
                     
+                    print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                    print(embedded_inputs.get_shape())
+                    print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                    # change audio shape to [batch_size, -1, num_mels]
+                    # we do this to ensure smooth concationation with frame_projection
+                    input_shape = (batch_size,-1,1)                   
+                    audio_out = tf.compat.v1.layers.Conv1D(filters=hp.num_mels, kernel_size=1, strides=1, padding='valid', data_format='channels_last', input_shape=input_shape)(audio_flatten)
+                    
+                    # flatten and concat to frames predict
+                    audio_out = tf.reshape(audio_out, [batch_size*hp.num_mels, -1])
+                    input_shape = (batch_size*hp.num_mels, -1)
+                    while(tf.shape(decoder_output) != tf.shape(original_shape)):                 
+                        decoder_output = tf.compat.v1.layers.Conv1D(filters=hp.num_mels, kernel_size=2, strides=1, padding='valid', data_format='channels_last', input_shape=input_shape)(decoder_output)
+                    
+                    print(tf.shape(decoder_output))
                     frames_audio_conc = tf.concat((frames_prediction, audio_out), 0)
                     
+                    
                     decoder_output = tf.reshape(frames_audio_conc, [batch_size,-1, hp.num_mels])
-                    input_shape = (batch_size,-1,80)
-                    decoder_output = tf.compat.v1.layers.Conv1D(filters=80, kernel_size=1, strides=50, padding='valid', data_format='channels_last', input_shape=input_shape)(decoder_output)
+                    # input_shape = (batch_size,-1,hp.num_mels)
+                    
+                    # config = tf.compat.v1.ConfigProto()
+                    # config.gpu_options.allow_growth = True
+                    # config.allow_soft_placement = True
+                    # with tf.compat.v1.Session(config=config) as sess:
+                    #     print(sess.run(t))
+                    while(tf.shape(decoder_output) != tf.shape(original_shape)):                 
+                        decoder_output = tf.compat.v1.layers.Conv1D(filters=hp.num_mels, kernel_size=2, strides=1, padding='valid', data_format='channels_last', input_shape=input_shape)(decoder_output)
+                        print(tf.shape(decoder_output))
+                    
+                   
                     decoder_output = tf.reshape(decoder_output, [batch_size, -1, hp.num_mels])
                     stop_token_prediction = tf.reshape(stop_token_prediction, [batch_size, -1])
-                    
-                    # INput shape set to input_shape[1:] ? 
-                    # change dim from 1202 -> 434
-                    # input_shape = ()
-                    # re_dec = tf.compat.v1.layers.conv1d(decoder_output, filters=166, kernel_size=1, strides=1, padding='valid', data_format='channels_first')
-                    #re_dec = conv1d(decoder_output, 3, hp.num_mels, tf.nn.tanh, is_training, 0, "postnet_convolutions")
-                    # print(re_dec)
-                    # exit()
+                                        
                     # Postnet
                     postnet = Postnet(is_training, hparams=hp, scope="postnet_convolutions")
                     
