@@ -81,6 +81,7 @@ class Tacotron():
             tower_embed_targets = tf.split(embed_targets, num_or_size_splits=hp.tacotron_num_gpus,
                                            axis=0)
             
+            
             ##############
             
             p_inputs = tf.numpy_function(split_func, [inputs, split_infos[:, 0]], lout_int)
@@ -147,12 +148,17 @@ class Tacotron():
                     # For shape visualization purpose
                     enc_conv_output_shape = encoder_cell.conv_output_shape
                     
-                    
+                    # Yen
+                    # Add convolution layer after speaker encoder
+                    tower_embed = tf.reshape(tower_embed_targets[i], (-1, 1,self._hparams.speaker_embedding_size,1))
+                    input_shape = (-1, 1, self._hparams.speaker_embedding_size, 1)
+                    tower_embed = tf.keras.layers.Conv2D(1, 2, activation='relu', padding='same', input_shape=input_shape)(tower_embed)
+
                     ### SV2TT2 ###
                     
                     # Append the speaker embedding to the encoder output at each timestep
                     tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
-                    tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
+                    tileable_embed_targets = tf.reshape(tower_embed, tileable_shape)
                     tiled_embed_targets = tf.tile(tileable_embed_targets, 
                                                        [1, tf.shape(encoder_outputs)[1], 1])
                     encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
