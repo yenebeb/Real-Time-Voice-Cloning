@@ -235,7 +235,7 @@ hparams = HParams(
     tacotron_data_random_state=1234,  # random state for train test split repeatability
     
     # performance parameters
-    tacotron_swap_with_cpu=False,
+    tacotron_swap_with_cpu=True,
     # Whether to use cpu as support to gpu for decoder computation (Not recommended: may cause 
     # major slowdowns! Only use when critical!)
     

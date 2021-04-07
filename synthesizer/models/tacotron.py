@@ -150,6 +150,7 @@ class Tacotron():
                     
                     # Yen
                     # Add convolution layer after speaker encoder
+                    # Reshape to 4d for input in conv2d // Or use conv1D -> todo
                     tower_embed = tf.reshape(tower_embed_targets[i], (-1, 1,self._hparams.speaker_embedding_size,1))
                     input_shape = (-1, 1, self._hparams.speaker_embedding_size, 1)
                     tower_embed = tf.keras.layers.Conv2D(1, 2, activation='relu', padding='same', input_shape=input_shape)(tower_embed)
