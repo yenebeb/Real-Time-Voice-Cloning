@@ -144,31 +144,24 @@ class Tacotron():
 
                     ### SV2TT2 ###
                     
-                    # Append the speaker embedding to the encoder output at each timestep
+                    ### SV2TT2 ###
+                    # Yen Edit #
+                    # Instead of appending speaker embedding to text embedding
+                    # Add speaker embedding to text input.
+                    
                     tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
                     tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
                     tiled_embed_targets = tf.tile(tileable_embed_targets, 
                                                        [1, tf.shape(embedded_inputs)[1], 1])
                     encoder_cond_concat = tf.concat((embedded_inputs, tiled_embed_targets), 2)
 
-                    # embed_encode_concat = tf.reshape(embed_encode_concat, [36,-1,256])
+                    # Use the concatted speaker embedding + text as input to the synthesiser encoder
                     encoder_cond_outputs = encoder_cell(encoder_cond_concat, tower_input_lengths[i])
+                                                           
+                    ##############
                     
                     # For shape visualization purpose
                     enc_conv_output_shape = encoder_cell.conv_output_shape
-                    
-                    
-                    ### SV2TT2 ###
-                    
-                    # Append the speaker embedding to the encoder output at each timestep
-                    # tileable_shape = [-1, 1, self._hparams.speaker_embedding_size]
-                    # tileable_embed_targets = tf.reshape(tower_embed_targets[i], tileable_shape)
-                    # tiled_embed_targets = tf.tile(tileable_embed_targets, 
-                    #                                    [1, tf.shape(encoder_outputs)[1], 1])
-                    # encoder_cond_outputs = tf.concat((encoder_outputs, tiled_embed_targets), 2)
-                    
-                    ##############
-                    
                     
                     # Decoder Parts
                     # Attention Decoder Prenet
