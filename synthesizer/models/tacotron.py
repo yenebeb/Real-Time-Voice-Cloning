@@ -143,8 +143,6 @@ class Tacotron():
                                    zoneout=hp.tacotron_zoneout_rate, scope="encoder_LSTM"))
 
                     ### SV2TT2 ###
-                    
-                    ### SV2TT2 ###
                     # Yen Edit #
                     # Instead of appending speaker embedding to text embedding
                     # Add speaker embedding to text input.
