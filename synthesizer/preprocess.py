@@ -9,6 +9,20 @@ from tqdm import tqdm
 import numpy as np
 import librosa
 
+import torchsnooper
+
+# SpeechSplit
+import os, sys
+from os import path
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+parentdir = os.path.dirname(parentdir)
+sys.path.append(parentdir)
+
+import torch
+
+from SpeechSplit.model import Generator_3 as Generator
+from SpeechSplit.hparams import hparams as hparams_speechsplit
 
 def preprocess_dataset(datasets_root: Path, out_dir: Path, n_processes: int,
                            skip_existing: bool, hparams, no_alignments: bool,
@@ -17,6 +31,7 @@ def preprocess_dataset(datasets_root: Path, out_dir: Path, n_processes: int,
     dataset_root = datasets_root.joinpath(datasets_name)
     input_dirs = [dataset_root.joinpath(subfolder.strip()) for subfolder in subfolders.split(",")]
     print("\n    ".join(map(str, ["Using data from:"] + input_dirs)))
+    print(input_dirs)
     assert all(input_dir.exists() for input_dir in input_dirs)
     
     # Create the output directories for each output file type
@@ -96,7 +111,9 @@ def preprocess_speaker(speaker_dir, out_dir: Path, skip_existing: bool, hparams,
             # Iterate over each entry in the alignments file
             for wav_fname, words, end_times in alignments:
                 wav_fpath = book_dir.joinpath(wav_fname + ".flac")
-                assert wav_fpath.exists()
+                if(not wav_fpath.exists()):
+                    print("File: " + str(wav_fpath) + " not found")
+                    raise AssertionError
                 words = words.replace("\"", "").split(",")
                 end_times = list(map(float, end_times.replace("\"", "").split(",")))
 
@@ -226,16 +243,39 @@ def process_utterance(wav: np.ndarray, text: str, out_dir: Path, basename: str,
     # Return a tuple describing this training example
     return wav_fpath.name, mel_fpath.name, "embed-%s.npy" % basename, len(wav), mel_frames, text
  
- 
+
+# @torchsnooper.snoop()
 def embed_utterance(fpaths, encoder_model_fpath):
+    wav_fpath, embed_fpath = fpaths
+   
+        
+    if(path.exists(embed_fpath)):
+        return
+    # print(embed_fpath)
+    
     if not encoder.is_loaded():
         encoder.load_model(encoder_model_fpath)
 
     # Compute the speaker embedding of the utterance
-    wav_fpath, embed_fpath = fpaths
+    # wav_fpath, embed_fpath = fpaths
     wav = np.load(wav_fpath)
     wav = encoder.preprocess_wav(wav)
-    embed = encoder.embed_utterance(wav)
+    
+    # Yen:
+    # Get Generator SpeechSplit
+    # TODO: Remove hardcoded path
+    # device = torch.device(torch.cuda.current_device())
+    device = torch.device('cpu')
+    G = Generator(hparams_speechsplit).eval().to(device)
+    g_checkpoint = torch.load('../SpeechSplit/assets/161000-G.ckpt', map_location=device)
+    G.load_state_dict(g_checkpoint['model'])
+    
+    # Process wav
+    # Caution this preprocessing is not done in trained SpeechSplit
+    # TODO: Might need to retrain SpeechSplit with same preprocessing on wav
+    encoder_wav = encoder.preprocess_wav(wav)
+
+    embed = encoder.embed_utterance(encoder_wav, G)
     np.save(embed_fpath, embed, allow_pickle=False)
     
  
@@ -246,6 +286,7 @@ def create_embeddings(synthesizer_root: Path, encoder_model_fpath: Path, n_proce
     embed_dir = synthesizer_root.joinpath("embeds")
     embed_dir.mkdir(exist_ok=True)
     
+    print(metadata_fpath)
     # Gather the input wave filepath and the target output embed filepath
     with metadata_fpath.open("r") as metadata_file:
         metadata = [line.split("|") for line in metadata_file]

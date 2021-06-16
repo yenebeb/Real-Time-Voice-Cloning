@@ -109,10 +109,10 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
     mel_dir = syn_dir.joinpath("mels")
     embed_dir = syn_dir.joinpath("embeds")
     dataset = SynthesizerDataset(metadata_fpath, mel_dir, embed_dir, hparams)
-    test_loader = DataLoader(dataset,
-                             batch_size=1,
-                             shuffle=True,
-                             pin_memory=True)
+    # test_loader = DataLoader(dataset,
+    #                          batch_size=1,
+    #                          shuffle=True,
+    #                          pin_memory=True)
 
     for i, session in enumerate(hparams.tts_schedule):
         current_step = model.get_step()
@@ -163,6 +163,8 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                 for j, k in enumerate(idx):
                     stop[j, :int(dataset.metadata[k][4])-1] = 0
 
+                print(embeds.shape)
+                
                 texts = texts.to(device)
                 mels = mels.to(device)
                 embeds = embeds.to(device)

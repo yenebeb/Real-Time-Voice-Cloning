@@ -12,6 +12,16 @@ import torch
 import librosa
 from audioread.exceptions import NoBackendError
 
+# SpeechSplit
+import os, sys
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+
+from SpeechSplit.model import Generator_3 as Generator
+from SpeechSplit.hparams import hparams as hparams_speechsplit
+
+
 # Use this directory structure for your datasets, or modify it to fit your needs
 recognized_datasets = [
     "LibriSpeech/dev-clean",
@@ -187,8 +197,21 @@ class Toolbox:
         # Compute the embedding
         if not encoder.is_loaded():
             self.init_encoder()
+
+        # Yen:
+        # Get Generator SpeechSplit
+        # TODO: Remove hardcoded path
+        # device = torch.device(torch.cuda.current_device())
+        device = "cpu"
+        G = Generator(hparams_speechsplit).eval().to(device)
+        g_checkpoint = torch.load('../SpeechSplit/assets/161000-G.ckpt', map_location=lambda storage, loc: storage)
+        G.load_state_dict(g_checkpoint['model'])
+
+        # Process wav
+        # Caution this preprocessing is not done in trained SpeechSplit
+        # TODO: Might need to retrain SpeechSplit with same preprocessing on wav
         encoder_wav = encoder.preprocess_wav(wav)
-        embed, partial_embeds, _ = encoder.embed_utterance(encoder_wav, return_partials=True)
+        embed, partial_embeds, _ = encoder.embed_utterance(encoder_wav, G, return_partials=True)
 
         # Add the utterance
         utterance = Utterance(name, speaker_name, wav, spec, embed, partial_embeds, False)
@@ -308,8 +331,20 @@ class Toolbox:
         # TODO: this is problematic with different sampling rates, gotta fix it
         if not encoder.is_loaded():
             self.init_encoder()
+        
+          # Yen:
+        # Get Generator SpeechSplit
+        # TODO: Remove hardcoded path
+        device = "cpu"
+        G = Generator(hparams_speechsplit).eval().to(device)
+        g_checkpoint = torch.load('../SpeechSplit/assets/161000-G.ckpt', map_location=lambda storage, loc: storage)
+        G.load_state_dict(g_checkpoint['model'])
+
+        # Process wav
+        # Caution this preprocessing is not done in trained SpeechSplit
+        # TODO: Might need to retrain SpeechSplit with same preprocessing on wav
         encoder_wav = encoder.preprocess_wav(wav)
-        embed, partial_embeds, _ = encoder.embed_utterance(encoder_wav, return_partials=True)
+        embed, partial_embeds, _ = encoder.embed_utterance(encoder_wav, G, return_partials=True)
         
         # Add the utterance
         name = speaker_name + "_gen_%05d" % np.random.randint(100000)

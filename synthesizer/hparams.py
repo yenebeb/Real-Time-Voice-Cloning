@@ -49,18 +49,20 @@ hparams = HParams(
                                                     # frame that has all values < -3.4
 
         ### Tacotron Training
-        tts_schedule = [(2,  1e-3,  20_000,  12),   # Progressive training schedule
-                        (2,  5e-4,  40_000,  12),   # (r, lr, step, batch_size)
-                        (2,  2e-4,  80_000,  12),   #
-                        (2,  1e-4, 160_000,  12),   # r = reduction factor (# of mel frames
-                        (2,  3e-5, 320_000,  12),   #     synthesized for each decoder iteration)
-                        (2,  1e-5, 640_000,  12)],  # lr = learning rate
+	# Yen
+	# Orig batch_size = 12 
+        tts_schedule = [(2,  1e-3,  20_000,  16),   # Progressive training schedule
+                        (2,  5e-4,  40_000,  16),   # (r, lr, step, batch_size)
+                        (2,  2e-4,  80_000,  16),   #
+                        (2,  1e-4, 160_000,  16),   # r = reduction factor (# of mel frames
+                        (2,  3e-5, 320_000,  16),   #     synthesized for each decoder iteration)
+                        (2,  1e-5, 640_000,  16)],  # lr = learning rate
 
         tts_clip_grad_norm = 1.0,                   # clips the gradient norm to prevent explosion - set to None if not needed
         tts_eval_interval = 500,                    # Number of steps between model evaluation (sample generation)
                                                     # Set to -1 to generate after completing epoch, or 0 to disable
 
-        tts_eval_num_samples = 1,                   # Makes this number of samples
+        tts_eval_num_samples = 3,                   # Makes this number of samples
 
         ### Data Preprocessing
         max_mel_frames = 900,
@@ -83,7 +85,7 @@ hparams = HParams(
         trim_silence = True,                        # Use with sample_rate of 16000 for best results
 
         ### SV2TTS
-        speaker_embedding_size = 256,               # Dimension for the speaker embedding
+        speaker_embedding_size = 2224,               # Dimension for the speaker embedding
         silence_min_duration_split = 0.4,           # Duration in seconds of a silence for an utterance to be split
         utterance_min_duration = 1.6,               # Duration in seconds below which utterances are discarded
         )
