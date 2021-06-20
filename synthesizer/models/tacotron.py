@@ -1,3 +1,4 @@
+from encoder.data_objects import speaker
 import os
 import numpy as np
 import torch
@@ -53,14 +54,28 @@ class Encoder(nn.Module):
         # Save the dimensions as human-readable names
         batch_size = x.size()[0]
         num_chars = x.size()[1]
-
+        
         if speaker_embedding.dim() == 1:
             idx = 0
         else:
             idx = 1
 
+        
+        # Yen get speaker embedding through 1d convolution first.
+        # Create 1d Convolution layer, input and output size are same
+        conv_size = speaker_embedding.shape[1]
+        conv1d_emb = torch.nn.Conv1d(conv_size, conv_size, 1, 2)
+
+        # If cuda available transfer to GPU
+        if torch.cuda.is_available():
+            conv1d_emb.cuda()
+        
+        # Add extra dimension for 3d input
+        speaker_embedding = conv1d_emb(speaker_embedding.unsqueeze(2))
+        
         # Start by making a copy of each speaker embedding to match the input text length
         # The output of this has size (batch_size, num_chars * tts_embed_dims)
+        
         speaker_embedding_size = speaker_embedding.size()[idx]
         e = speaker_embedding.repeat_interleave(num_chars, dim=idx)
 
