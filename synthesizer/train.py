@@ -58,7 +58,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
     loss_window = ValueWindow(100)
     
     # Check for Learning rates
-    learning_rate_1k = [1e-7,1e-8,1e-9,1e-10]
+    learning_rate_1k = [1e-5, 5e-6, 1e-6, 5e-6, 1e-7,5e-8, 1e-8,5e-9, 1e-9,5e-10, 1e-10]
     max_step = -1
     force_restart = False
     for lr in learning_rate_1k:
@@ -128,7 +128,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
         for i, session in enumerate(hparams.tts_schedule):
             current_step = model.get_step()
             if(max_step < 0):
-                max_step = current_step + 100
+                max_step = current_step + 1000
             r, _, _, batch_size = session
 
             training_steps = max_step - current_step
@@ -225,9 +225,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                     # Backup or save model as appropriate
                     if backup_every != 0 and step % backup_every == 0 : 
                         backup_fpath = Path("{}/{}_{}k.pt".format(str(weights_fpath.parent), run_id, k))
-                        model.save(backup_fpath, optimizer)
-
-                        
+                        model.save(backup_fpath, optimizer)                    
                                             
 
                     if save_every != 0 and step % save_every == 0 : 
