@@ -222,42 +222,6 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                         writer.add_scalar(tag, value, step)
                         writer.flush()
 
-                    # Backup or save model as appropriate
-                    if backup_every != 0 and step % backup_every == 0 : 
-                        backup_fpath = Path("{}/{}_{}k.pt".format(str(weights_fpath.parent), run_id, k))
-                        model.save(backup_fpath, optimizer)                    
-                                            
-
-                    if save_every != 0 and step % save_every == 0 : 
-                        # Must save latest optimizer state to ensure that resuming training
-                        # doesn't produce artifacts
-                        model.save(weights_fpath, optimizer)
-
-                    # Evaluate model to generate samples
-                    epoch_eval = hparams.tts_eval_interval == -1 and i == steps_per_epoch  # If epoch is done
-                    step_eval = hparams.tts_eval_interval > 0 and step % hparams.tts_eval_interval == 0  # Every N steps
-                    if epoch_eval or step_eval:
-                        for sample_idx in range(hparams.tts_eval_num_samples):
-                            # At most, generate samples equal to number in the batch
-                            if sample_idx + 1 <= len(texts):
-                                # Remove padding from mels using frame length in metadata
-                                mel_length = int(dataset.metadata[idx[sample_idx]][4])
-                                mel_prediction = np_now(m2_hat[sample_idx]).T[:mel_length]
-                                target_spectrogram = np_now(mels[sample_idx]).T[:mel_length]
-                                attention_len = mel_length // model.r
-
-                                eval_model(attention=np_now(attention[sample_idx][:, :attention_len]),
-                                        mel_prediction=mel_prediction,
-                                        target_spectrogram=target_spectrogram,
-                                        input_seq=np_now(texts[sample_idx]),
-                                        step=step,
-                                        plot_dir=plot_dir,
-                                        mel_output_dir=mel_output_dir,
-                                        wav_dir=wav_dir,
-                                        sample_num=sample_idx + 1,
-                                        loss=loss,
-                                        hparams=hparams)
-
                     # Break out of loop to update training schedule
                     if step >= max_step:
                         break
